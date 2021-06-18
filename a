@@ -1,0 +1,144 @@
+import os
+import random
+from itertools import cycle
+from discord_slash import SlashCommand
+import discord
+from discord.ext import commands, tasks
+import DiscordUtils
+
+client = commands.Bot(command_prefix="!")  # botunun ne ile çalışacağını yaz buradan
+
+status = cycle(['Naber'
+                'Gelmedi'
+                'Senden'
+                'Bir Haber'])
+
+
+@tasks.loop(seconds=10)
+async def status_swap():
+    await client.change_presence(activity=discord.Game(next(status)))
+
+@client.event
+async def on_ready():
+    print("BURAYA HAZIR OLDUĞUNDA NE DİYECEĞİNİ YAZ")
+    status_swap.start()
+
+slash = SlashCommand(client, sync_commands=True)
+music = DiscordUtils.Music()
+
+
+@client.command()
+async def join(ctx):
+    voicetrue = ctx.author.voice
+    if voicetrue is None:
+        return await ctx.send('Ses kanalına girsene babajımm')
+    await ctx.author.voice.channel.connect()
+    await ctx.send('Ben geldim babajımm!!')
+
+@client.command()
+async def leave(ctx):
+    voicetrue = ctx.author.voice
+    mevoicetrue = ctx.guild.me.voice
+    if voicetrue is None:
+        return await ctx.send('Babajımm bi ganala gir' )
+    if mevoicetrue is None:
+        return await ctx.send('Babajımm kör gözünü sikeyim ben ses kanalında mıyım?')
+    await ctx.voice_client.disconnect()
+    await ctx.send('Diggat et gendine bebişim')
+
+@client.command(aliases = ['p'])
+async def play(ctx, *, url):
+    player = music.get_player(guild_id=ctx.guild.id)
+    if not player:
+        player = music.create_player(ctx, ffmpeg_error_betterfix=True)
+    if not ctx.voice_client.is_playing():
+        await player.queue(url, search=True)
+        song = await player.play()
+        await ctx.send(f'Sesi kes şimdi {song.name} çalıyor!!')
+    else:
+        song = await player.queue(url, search=True)
+        await ctx.send(f'{song.name} listeye eklendi')
+
+@client.command()
+async def pause(ctx):
+    voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
+    if voice.is_playing():
+        voice.pause()
+    else:
+        await ctx.send("Ezan mı okundu?")
+
+
+@client.command()
+async def resume(ctx):
+    voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
+    if voice.is_paused():
+        voice.resume()
+    else:
+        await ctx.send("Ezan bitmiş babuş!")
+
+
+@client.command(aliases = ['s'])
+async def stop(ctx):
+    voice = discord.utils.get(client.voice_clients, guild=ctx.guild)
+    voice.stop()
+
+
+
+@client.command()
+async def kick(ctx, member: discord.Member, *, reason=None):
+    await member.kick(reason=reason)
+    await ctx.send(f'{member.mention} 2x yarra yedi')
+
+
+@client.command()
+async def ban(ctx, member: discord.Member, *, reason=None):
+    await member.ban(reason=reason)
+    await ctx.send(f'{member.mention} 1x yarra yedi')
+
+
+@client.command()
+async def unban(ctx, *, member):
+    banned_users = await ctx.guild.bans()
+    member_name, member_discriminator = member.split('#')
+
+    for ban_entry in banned_users:
+        user = ban_entry.user
+
+        if (user.name, user.discriminator) == (member_name, member_discriminator):
+            await ctx.guild.unban(user)
+            await ctx.send(f'Sadece saxo çekti {user.mention}')
+            return
+
+
+@client.command()
+async def slowmode(ctx, time: int):
+    if (not ctx.author.guild_permissions.manage_messages):
+        await ctx.send('Babajım sen bunu gönderemezsin kapiş!!')
+        return
+    try:
+        if time == 0:
+            await ctx.send('Slowmode kapalı dayıcım')
+            await ctx.channel.edit(slowmode_delay=0)
+        elif time > 21600:
+            await ctx.send('İdam vereydin amcık!')
+        else:
+            await ctx.send(f'Slowmode aha bu kadar : {time} saniye!')
+    except Exception:
+        await print('yarra yediniz!')
+
+
+@client.command()
+async def avatar(ctx, member: discord.Member = None):
+    if member == None:
+        member = ctx.author
+
+    memberAvatar = member.avatar_url
+
+    avaEmbed = discord.Embed(title=f"{member.name}'in avatari")
+    avaEmbed.set_image(url=memberAvatar)
+
+    await ctx.send(embed=avaEmbed)
+
+
+client.run('tokenini gir babajım buraya')
+
